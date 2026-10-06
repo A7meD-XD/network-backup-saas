@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Network Watch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/styles.css?v=6">
+</head>
+<body class="min-h-screen bg-[#f2f5f1] text-[#1c2b25] antialiased">
+  <header class="bg-[#183a30] text-white">
+    <div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
+      <div class="flex items-center gap-3">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-[#b9d4c1]">Network operations</p>
+          <h1 class="text-xl font-bold">Network Watch</h1>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="session-label" class="hidden text-sm text-[#d6e4da]"></span>
+        <button id="signout" type="button" class="hidden rounded-md border border-white/25 px-3 py-2 text-sm font-semibold hover:bg-white/10">Sign out</button>
+        <a href="/docs" class="rounded-md border border-white/25 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10">API docs</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-7xl px-5 py-8 sm:px-8">
+    <div id="notice" class="mb-5 hidden rounded-md border px-4 py-3 text-sm" role="status" aria-live="polite"></div>
+
+    <section id="login-panel" class="mx-auto mt-8 max-w-md rounded-lg border border-[#d8e0d9] bg-white p-6 shadow-sm sm:p-8">
+      <p class="text-xs font-bold uppercase tracking-[0.12em] text-[#597365]">Authenticated access</p>
+      <h2 class="mt-2 text-2xl font-bold">Sign in to Network Watch</h2>
+      <p class="mt-2 text-sm leading-6 text-[#617169]">Use your registered account to view device reachability, backups, and audit findings.</p>
+      <form id="login-form" class="mt-6 space-y-4">
+        <label class="block text-sm font-semibold" for="login-email">Email
+          <input id="login-email" name="username" type="email" autocomplete="username" required class="mt-1.5 block w-full rounded-md border border-[#bdcbbf] bg-white px-3 py-2.5 font-normal outline-none focus:border-[#386348] focus:ring-2 focus:ring-[#d6ed8b]">
+        </label>
+        <label class="block text-sm font-semibold" for="login-password">Password
+          <input id="login-password" name="password" type="password" autocomplete="current-password" required class="mt-1.5 block w-full rounded-md border border-[#bdcbbf] bg-white px-3 py-2.5 font-normal outline-none focus:border-[#386348] focus:ring-2 focus:ring-[#d6ed8b]">
+        </label>
+        <button id="login-submit" class="w-full rounded-md bg-[#183a30] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#285744] disabled:cursor-wait disabled:opacity-60">Sign in</button>
+      </form>
+      <p class="mt-5 text-xs leading-5 text-[#718078]">Accounts are provisioned through <a href="/docs" class="font-semibold text-[#355547] underline">the API</a>. Viewer accounts can inspect; Admin accounts can run backups.</p>
+    </section>
+
+    <section id="dashboard-panel" class="hidden">
+      <section class="mb-7 flex flex-col justify-between gap-5 border-b border-[#d8e0d9] pb-6 sm:flex-row sm:items-end">
+        <div>
+          <p class="mb-2 text-sm font-semibold uppercase tracking-[0.12em] text-[#597365]">Configuration control</p>
+          <h2 class="text-3xl font-bold">Device fleet</h2>
+          <p class="mt-2 max-w-2xl text-sm leading-6 text-[#617169]">Live SSH reachability, recent backups, and configuration security findings.</p>
+        </div>
+        <div class="flex items-end gap-6">
+          <div><span id="device-count" class="block font-mono text-2xl font-medium text-[#183a30]">0</span><span class="whitespace-nowrap text-sm text-[#617169]">devices</span></div>
+          <div><span id="online-count" class="block font-mono text-2xl font-medium text-[#32704c]">0</span><span class="whitespace-nowrap text-sm text-[#617169]">SSH reachable</span></div>
+          <div><span id="noncompliant-count" class="block font-mono text-2xl font-medium text-[#a33b2f]">0</span><span class="whitespace-nowrap text-sm text-[#617169]">non-compliant</span></div>
+          <button id="refresh-button" type="button" title="Refresh fleet status" class="rounded-md border border-[#bdcbbf] px-3 py-2 text-sm font-semibold text-[#355547] transition hover:bg-white">Refresh</button>
+        </div>
+      </section>
+
+      <div class="overflow-hidden rounded-lg border border-[#d8e0d9] bg-white shadow-sm">
+        <div class="overflow-x-auto">
+          <table class="device-table w-full min-w-[1120px] border-collapse text-left">
+            <thead class="bg-[#f7f9f6] text-xs uppercase tracking-[0.1em] text-[#617169]">
+              <tr>
+                <th class="px-5 py-4 font-semibold">Device</th>
+                <th class="px-4 py-4 font-semibold">Platform</th>
+                <th class="px-4 py-4 font-semibold">SSH status</th>
+                <th class="px-4 py-4 font-semibold">Latest backup</th>
+                <th class="px-4 py-4 font-semibold">Security audit</th>
+                <th class="px-4 py-4 font-semibold">Compliance</th>
+                <th class="px-5 py-4 text-right font-semibold">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="device-list" class="divide-y divide-[#e7ece7]"></tbody>
+          </table>
+        </div>
+        <div id="empty-state" class="hidden border-t border-[#e7ece7] px-5 py-12 text-center">
+          <div class="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-full bg-[#e7f0e6] text-xl text-[#386348]" aria-hidden="true">+</div>
+          <h3 class="text-lg font-bold">No devices registered</h3>
+          <p class="mt-2 text-sm text-[#617169]">An Admin can add devices through the API docs.</p>
+          <a href="/docs" class="mt-4 inline-flex rounded-md bg-[#183a30] px-4 py-2 text-sm font-semibold text-white hover:bg-[#285744]">Open API docs</a>
+        </div>
+        <div class="border-t border-[#e7ece7] px-5 py-3 text-xs text-[#718078]">Reachability checks test TCP access to the device SSH port. Backup credentials are encrypted at rest.</div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="diff-dialog" class="w-[min(1000px,calc(100%-2rem))] max-w-none rounded-lg border border-[#d8e0d9] p-0 shadow-2xl backdrop:bg-[#10251d]/60">
+    <div class="flex items-start justify-between gap-4 border-b border-[#e4eae4] px-5 py-4 sm:px-6">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-[#617169]">Configuration comparison</p>
+        <h2 id="diff-title" class="mt-1 text-xl font-bold">Backup diff</h2>
+      </div>
+      <button type="button" id="close-diff" class="rounded-md border border-[#cbd6ce] px-3 py-2 text-sm font-semibold hover:bg-[#f1f5f1]">Close</button>
+    </div>
+    <div id="diff-body" class="grid gap-5 p-5 sm:grid-cols-2 sm:p-6"></div>
+  </dialog>
+
+  <script>
+    const notice = document.querySelector("#notice");
+    const loginPanel = document.querySelector("#login-panel");
+    const dashboardPanel = document.querySelector("#dashboard-panel");
+    const deviceList = document.querySelector("#device-list");
+    const diffDialog = document.querySelector("#diff-dialog");
+    const diffBody = document.querySelector("#diff-body");
+    const dateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+    let accessToken = sessionStorage.getItem("network-watch-token");
+    let currentRole = sessionStorage.getItem("network-watch-role");
+
+    function showNotice(message, isError = false) {
+      notice.textContent = message;
+      notice.className = `mb-5 rounded-md border px-4 py-3 text-sm ${isError ? "border-[#e7b9b1] bg-[#fff0ed] text-[#8e3025]" : "border-[#b9d5c0] bg-[#edf7ee] text-[#285a3b]"}`;
+      notice.classList.remove("hidden");
+    }
+
+    function clearSession(message = "") {
+      accessToken = null;
+      currentRole = null;
+      sessionStorage.removeItem("network-watch-token");
+      sessionStorage.removeItem("network-watch-role");
+      dashboardPanel.classList.add("hidden");
+      loginPanel.classList.remove("hidden");
+      document.querySelector("#session-label").classList.add("hidden");
+      document.querySelector("#signout").classList.add("hidden");
+      if (message) showNotice(message, true);
+    }
+
+    async function apiRequest(path, options = {}) {
+      const headers = new Headers(options.headers || {});
+      headers.set("Authorization", `Bearer ${accessToken}`);
+      const response = await fetch(path, { ...options, headers });
+      const result = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        clearSession("Your session expired. Sign in again.");
+        throw new Error(result.detail || "Authentication required.");
+      }
+      if (!response.ok) throw new Error(result.detail || "Request failed.");
+      return result;
+    }
+
+    function cell(label, className = "") {
+      const element = document.createElement("td");
+      element.dataset.label = label;
+      element.className = className;
+      return element;
+    }
+
+    function addAuditWidget(cellElement, issues) {
+      const details = document.createElement("details");
+      details.className = "audit-details";
+      const summary = document.createElement("summary");
+      summary.className = `cursor-pointer text-sm font-semibold ${issues.length ? "text-[#a33b2f]" : "text-[#32704c]"}`;
+      summary.textContent = issues.length ? `${issues.length} finding${issues.length === 1 ? "" : "s"}` : "No findings";
+      details.append(summary);
+      if (issues.length) {
+        const list = document.createElement("ul");
+        list.className = "mt-2 max-w-xs space-y-1 text-xs leading-5 text-[#8b382e]";
+        for (const issue of issues) {
+          const item = document.createElement("li");
+          item.textContent = issue;
+          list.append(item);
+        }
+        details.append(list);
+      }
+      cellElement.append(details);
+    }
+
+    function addComplianceWidget(cellElement, device) {
+      const findings = device.compliance_findings || [];
+      const details = document.createElement("details");
+      details.className = "audit-details";
+      const summary = document.createElement("summary");
+      summary.className = `cursor-pointer text-sm font-semibold ${findings.length ? "text-[#a33b2f]" : "text-[#32704c]"}`;
+      summary.textContent = findings.length ? `${findings.length} warning${findings.length === 1 ? "" : "s"}` : "Compliant";
+      details.append(summary);
+      if (findings.length) {
+        const list = document.createElement("ul");
+        list.className = "mt-2 max-w-sm space-y-3 text-xs leading-5 text-[#8b382e]";
+        for (const finding of findings) {
+          const item = document.createElement("li");
+          const title = document.createElement("strong");
+          title.className = "block";
+          title.textContent = `${finding.severity.toUpperCase()}: ${finding.name.replaceAll("_", " ")}`;
+          const reason = document.createElement("span");
+          reason.className = "block text-[#59675f]";
+          reason.textContent = finding.description;
+          const remediation = document.createElement("span");
+          remediation.className = "mt-1 block font-semibold";
+          remediation.textContent = `Remediation: ${finding.remediation}`;
+          item.append(title, reason, remediation);
+          list.append(item);
+        }
+        details.append(list);
+      }
+      cellElement.append(details);
+    }
+
+    function renderDevice(device) {
+      const row = document.createElement("tr");
+      row.className = "device-row transition-colors hover:bg-[#fbfcfa]";
+
+      const identity = cell("Device", "px-5 py-4");
+      const hostname = document.createElement("div");
+      hostname.className = "font-semibold text-[#1c2b25]";
+      hostname.textContent = device.hostname;
+      const address = document.createElement("div");
+      address.className = "mt-1 font-mono text-xs text-[#718078]";
+      address.textContent = `${device.ip_address} · SSH ${device.ssh_port}`;
+      identity.append(hostname, address);
+      row.append(identity);
+
+      const platform = cell("Platform", "px-4 py-4");
+      const platformTag = document.createElement("span");
+      platformTag.className = "rounded bg-[#edf3ed] px-2 py-1 font-mono text-xs text-[#385849]";
+      platformTag.textContent = device.device_type;
+      platform.append(platformTag);
+      row.append(platform);
+
+      const statusCell = cell("SSH status", "px-4 py-4");
+      const statusPill = document.createElement("span");
+      statusPill.className = `status-pill ${device.ssh_reachable ? "online" : "offline"}`;
+      statusPill.textContent = device.ssh_reachable ? "SSH reachable" : "SSH unavailable";
+      statusCell.append(statusPill);
+      row.append(statusCell);
+
+      const backupCell = cell("Latest backup", "px-4 py-4 text-sm text-[#53635a]");
+      backupCell.textContent = device.latest_backup_at ? dateFormatter.format(new Date(device.latest_backup_at)) : "Never";
+      row.append(backupCell);
+
+      const auditCell = cell("Security audit", "px-4 py-4");
+      addAuditWidget(auditCell, device.security_issues);
+      row.append(auditCell);
+
+      const complianceCell = cell("Compliance", "px-4 py-4");
+      addComplianceWidget(complianceCell, device);
+      row.append(complianceCell);
+
+      const actionsCell = cell("Actions", "px-5 py-4");
+      const actions = document.createElement("div");
+      actions.className = "flex justify-end gap-2";
+      if (currentRole === "Admin") {
+        const backupButton = document.createElement("button");
+        backupButton.type = "button";
+        backupButton.className = "rounded-md bg-[#d6ed8b] px-3 py-2 text-sm font-bold text-[#203525] transition hover:bg-[#c5e36e] disabled:cursor-wait disabled:opacity-60";
+        backupButton.textContent = "Backup Now";
+        backupButton.addEventListener("click", () => runBackup(device, backupButton));
+        actions.append(backupButton);
+      }
+      const diffButton = document.createElement("button");
+      diffButton.type = "button";
+      diffButton.className = "rounded-md border border-[#cbd6ce] px-3 py-2 text-sm font-semibold text-[#355547] transition hover:bg-[#f1f5f1] disabled:cursor-not-allowed disabled:opacity-40";
+      diffButton.textContent = "View Diff";
+      diffButton.disabled = device.backup_count < 2;
+      diffButton.addEventListener("click", () => openDiff(device));
+      actions.append(diffButton);
+      actionsCell.append(actions);
+      row.append(actionsCell);
+      return row;
+    }
+
+    async function loadDashboard() {
+      if (!accessToken) return clearSession();
+      dashboardPanel.classList.remove("hidden");
+      loginPanel.classList.add("hidden");
+      deviceList.replaceChildren();
+      try {
+        const data = await apiRequest("/api/dashboard");
+        currentRole = data.role;
+        sessionStorage.setItem("network-watch-role", currentRole);
+        document.querySelector("#session-label").textContent = currentRole;
+        document.querySelector("#session-label").classList.remove("hidden");
+        document.querySelector("#signout").classList.remove("hidden");
+        document.querySelector("#device-count").textContent = data.devices.length;
+        document.querySelector("#online-count").textContent = data.devices.filter(device => device.ssh_reachable).length;
+        document.querySelector("#noncompliant-count").textContent = data.devices.filter(device => !device.compliant).length;
+        for (const device of data.devices) deviceList.append(renderDevice(device));
+        document.querySelector("#empty-state").classList.toggle("hidden", data.devices.length > 0);
+      } catch (error) {
+        if (accessToken) showNotice(error.message, true);
+      }
+    }
+
+    async function runBackup(device, button) {
+      button.disabled = true;
+      button.textContent = "Connecting…";
+      try {
+        const result = await apiRequest(`/api/devices/${device.id}/backup`, { method: "POST" });
+        showNotice(`Backup completed for ${device.hostname}. Refreshing device status.`);
+        await loadDashboard();
+      } catch (error) {
+        showNotice(error.message, true);
+      } finally {
+        if (button.isConnected) {
+          button.disabled = false;
+          button.textContent = "Backup Now";
+        }
+      }
+    }
+
+    async function openDiff(device) {
+      diffDialog.showModal();
+      document.querySelector("#diff-title").textContent = `${device.hostname} · loading diff`;
+      diffBody.replaceChildren();
+      try {
+        const result = await apiRequest(`/api/devices/${device.id}/diff`);
+        document.querySelector("#diff-title").textContent = `${device.hostname}: backup ${result.previous_backup_id} → ${result.latest_backup_id}`;
+        const summarySection = document.createElement("section");
+        summarySection.className = "ai-summary col-span-full";
+        const summaryHeading = document.createElement("h3");
+        summaryHeading.className = "text-sm font-bold uppercase";
+        summaryHeading.textContent = "AI impact summary";
+        const summaryText = document.createElement("p");
+        summaryText.className = "mt-2 text-sm leading-6";
+        summaryText.textContent = result.ai_summary || "AI summary is unavailable. Configure GEMINI_API_KEY to enable it.";
+        summarySection.append(summaryHeading, summaryText);
+        diffBody.append(summarySection);
+        for (const [label, key, type] of [["Removed", "removed_lines", "removed"], ["Added", "added_lines", "added"]]) {
+          const section = document.createElement("section");
+          const heading = document.createElement("h3");
+          heading.className = `diff-heading ${type}`;
+          heading.textContent = `${label} (${result[key].length})`;
+          const pre = document.createElement("pre");
+          pre.className = `diff-lines ${type}`;
+          pre.textContent = result[key].length ? result[key].map(line => `${type === "added" ? "+" : "−"} ${line}`).join("\n") : "No lines";
+          section.append(heading, pre);
+          diffBody.append(section);
+        }
+      } catch (error) {
+        diffBody.textContent = error.message;
+      }
+    }
+
+    document.querySelector("#login-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      const submit = document.querySelector("#login-submit");
+      submit.disabled = true;
+      submit.textContent = "Signing in…";
+      const form = new FormData(event.currentTarget);
+      const body = new URLSearchParams({ username: form.get("username"), password: form.get("password") });
+      try {
+        const response = await fetch("/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body,
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || "Sign-in failed.");
+        accessToken = result.access_token;
+        currentRole = result.role;
+        sessionStorage.setItem("network-watch-token", accessToken);
+        sessionStorage.setItem("network-watch-role", currentRole);
+        notice.classList.add("hidden");
+        await loadDashboard();
+      } catch (error) {
+        showNotice(error.message, true);
+      } finally {
+        submit.disabled = false;
+        submit.textContent = "Sign in";
+      }
+    });
+
+    document.querySelector("#refresh-button").addEventListener("click", loadDashboard);
+    document.querySelector("#signout").addEventListener("click", () => clearSession());
+    document.querySelector("#close-diff").addEventListener("click", () => diffDialog.close());
+    diffDialog.addEventListener("click", event => {
+      if (event.target === diffDialog) diffDialog.close();
+    });
+
+    if (accessToken) loadDashboard();
+  </script>
+</body>
+</html>
