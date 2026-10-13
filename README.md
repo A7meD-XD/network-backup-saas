@@ -1,6 +1,7 @@
 # Network Configuration Backup & Audit API
 
 A FastAPI network-configuration backup and audit service. Local development defaults to SQLite; the Docker deployment uses PostgreSQL. Device passwords are encrypted with Fernet before storage, and the API never returns them.
+[![Architecture diagram of a7med-xd/network-backup-saas](https://gitdiagram.com/a7med-xd/network-backup-saas/diagram.png)](https://gitdiagram.com/a7med-xd/network-backup-saas?utm_source=readme&utm_medium=picture)
 
 ## Docker Deployment
 
